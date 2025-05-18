@@ -1,10 +1,19 @@
 [BITS 16]
 org 0x7C00+512
-boot_2_sectors_count: dw ((boot_2_end-boot_2_sectors_count) + 511)/512
+%include "boot2header.inc"
+header:
+    istruc Boot2Header
+        .sector_count: dw ((boot_2_end-header) + 511)/512
+    iend
 
 _start:
     mov si, stage_2_msg
     call puts
+    mov si, newline
+    call puts
+    mov al, byte [header+Boot2Header.boot_disk]
+    mov si, ax
+    call print_byte
 .loop:
     hlt
     jmp .loop
@@ -58,5 +67,6 @@ print_word:
     
 ; Data
 stage_2_msg: db "Hello from Stage 2 :)", 0
+newline: db 0x0A, 0x0D, 0
 hex_digits: db "0123456789ABCDEF"
 boot_2_end:

@@ -1,6 +1,7 @@
 [BITS 16]
 org 0x7C00
 
+%include "boot2header.inc"
 mov [boot_disk], dl
 mov ah, 8
 int 0x13
@@ -8,10 +9,6 @@ and cl, 0x3f
 mov [boot_sectors_per_track], cl
 mov [boot_number_of_heads], dh
 
-struc Boot2Header
-    .sector_count resw 1
-    .entry resb 0
-endstruc
 mov bx, boot_2
 mov al, 1
 call boot_load_sector
@@ -22,13 +19,21 @@ add bx, 512
 mov dx, word [boot_2+Boot2Header.sector_count]
 load_loop:
     cmp ax, dx
-    jge boot_2+Boot2Header.entry ; al >= BOOT_2_SECTORS
+    jge jump_to_boot2
     call boot_load_sector
     jc error
     inc al
     add bx, 512
     jmp load_loop
-
+jump_to_boot2:
+    mov al, byte [boot_disk]
+    mov byte [boot_2+Boot2Header.boot_disk], al
+    mov ax, word [boot_sectors_per_track]
+    mov word [boot_2+Boot2Header.boot_sectors_per_track], ax
+    mov ax, word [boot_number_of_heads]
+    mov word [boot_2+Boot2Header.boot_number_of_heads], ax
+    xor ax, ax
+    jmp boot_2+Boot2Header.entry
 ; AL    - sector (LBA)
 ; ES:BX - buffer
 boot_load_sector:
