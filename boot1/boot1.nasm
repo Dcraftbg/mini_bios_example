@@ -1,7 +1,13 @@
 [BITS 16]
 org 0x7C00
 
-%include "boot2header.inc"
+struc Boot2Header
+    .sector_count resw 1
+    .boot_disk resb 1
+    .boot_sectors_per_track resw 1
+    .boot_number_of_heads resw 1
+    .entry resb 0
+endstruc
 mov [boot_disk], dl
 mov ah, 8
 int 0x13
@@ -32,8 +38,53 @@ jump_to_boot2:
     mov word [boot_2+Boot2Header.boot_sectors_per_track], ax
     mov ax, word [boot_number_of_heads]
     mov word [boot_2+Boot2Header.boot_number_of_heads], ax
+
+    ; fast A20 gate
+    in al, 0x92
+    or al, 2
+    out 0x92, al
+
+    ; jump to protected mode
+    cli
     xor ax, ax
-    jmp boot_2+Boot2Header.entry
+    mov ds, ax
+    lgdt [gdtr]
+    mov eax, cr0
+    or al, 1
+    mov cr0, eax
+    jmp 0x08:boot_2+Boot2Header.entry
+
+ACC_PRESENT    equ 1 << 7
+ACC_DPL_SHIFT  equ 5
+ACC_DPL_KERNEL equ (0x0 << ACC_DPL_SHIFT)
+ACC_SYSTEM     equ 1 << 4
+ACC_EXEC       equ 1 << 3
+ACC_DC         equ 1 << 2
+ACC_RW         equ 1 << 1
+ACC_DIRTY      equ 1 << 0
+
+FLAG_GRANULARITY    equ 0x8
+FLAG_PROTECTED_MODE equ 0x4
+
+%define GDT_DESC_BASE0_LIMIT_FFFFF(access, flags) \
+    (0x000F00000000FFFF | ((access) << 40) | ((flags) << 52))
+gdt:
+    dq 0
+    ;  0xbbflaabbbbbbllll
+    dq GDT_DESC_BASE0_LIMIT_FFFFF(ACC_DPL_KERNEL | ACC_PRESENT | ACC_SYSTEM | ACC_EXEC | ACC_RW, FLAG_PROTECTED_MODE | FLAG_GRANULARITY)
+    dq GDT_DESC_BASE0_LIMIT_FFFFF(ACC_DPL_KERNEL | ACC_PRESENT | ACC_SYSTEM | ACC_RW           , FLAG_PROTECTED_MODE | FLAG_GRANULARITY)
+gdt_end:
+
+struc TableDescriptor
+    .size resw 1
+    .data resd 1
+endstruc
+gdtr: istruc TableDescriptor
+    .size: dw (gdt_end-gdt)
+    .data: dd gdt
+iend
+    ; xor ax, ax
+    ; jmp boot_2+Boot2Header.entry
 ; AL    - sector (LBA)
 ; ES:BX - buffer
 boot_load_sector:
