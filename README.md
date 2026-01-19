@@ -1,3 +1,3 @@
 # Mini BIOS example
 
-A little multi stage BIOS bootloader example
+Moved to [codeberg](https://codeberg.org/dcraftbg/mini_bios_example.git)
